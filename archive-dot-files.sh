@@ -53,7 +53,6 @@ DOTFILES=(
     # Editors
     ".vimrc"
     ".vim"
-    ".config/nvim"
     ".nanorc"
     ".emacs"
     ".emacs.d"
@@ -77,15 +76,7 @@ DOTFILES=(
     ".selected_editor"
     
     # Application configs
-    ".config/htop"
-    ".config/neofetch"
-    ".config/ranger"
-    ".config/starship.toml"
-    ".config/alacritty"
-    ".config/kitty"
-    ".config/Code/User/settings.json"
-    ".config/Code/User/keybindings.json"
-    ".config/Code/User/snippets"
+    ".config"  # Entire .config directory with all application configurations
     
     # WSL specific
     ".wslconfig"
