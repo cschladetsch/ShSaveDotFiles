@@ -81,6 +81,9 @@ DOTFILES=(
     # WSL specific
     ".wslconfig"
     ".wslgconfig"
+    
+    # User documents
+    "doc"
 )
 
 # Function to check if file/directory exists and copy it
