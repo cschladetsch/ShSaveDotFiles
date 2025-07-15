@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # backup-dotfiles.sh - Backup important dotfiles for migration
-# Usage: ./backup-dotfiles.sh [output-name]
+# Usage: ./backup-dotfiles.sh [output-name] [--push]
+#        --push: Push the backup to https://github.com/cschladetsch/PrivateDotFiles
 
 set -euo pipefail
 
@@ -11,8 +12,23 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Output filename
-OUTPUT_NAME="${1:-dotfiles-backup-$(date +%Y%m%d-%H%M%S)}"
+# Parse arguments
+PUSH_TO_REPO=false
+OUTPUT_NAME=""
+
+for arg in "$@"; do
+    if [[ "$arg" == "--push" ]]; then
+        PUSH_TO_REPO=true
+    else
+        OUTPUT_NAME="$arg"
+    fi
+done
+
+# Set default output name if not provided
+if [[ -z "$OUTPUT_NAME" ]]; then
+    OUTPUT_NAME="dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
+fi
+
 OUTPUT_FILE="${OUTPUT_NAME}.tar.gz"
 TEMP_DIR="/tmp/${OUTPUT_NAME}"
 
@@ -270,3 +286,71 @@ echo -e "  4. ./restore-dotfiles.sh"
 # Optional: List items that were skipped
 echo -e "\n${YELLOW}Note:${NC} Some files may not exist on your system and were skipped."
 echo -e "This is normal if you don't use certain applications."
+
+# Push to git repository if requested
+if [[ "$PUSH_TO_REPO" == true ]]; then
+    echo -e "\n${YELLOW}Pushing to PrivateDotFiles repository...${NC}"
+    
+    # Create a temporary directory for the git operation
+    REPO_DIR="/tmp/PrivateDotFiles-$(date +%s)"
+    
+    # Clone the repository
+    if git clone git@github.com:cschladetsch/PrivateDotFiles.git "$REPO_DIR" 2>/dev/null; then
+        # Copy the archive to the repo
+        cp "$HOME/$OUTPUT_FILE" "$REPO_DIR/"
+        
+        # Change to repo directory
+        cd "$REPO_DIR"
+        
+        # Keep only the last 5 backup files
+        echo -e "${YELLOW}Cleaning up old backups (keeping last 5)...${NC}"
+        
+        # Get all tar.gz files sorted by modification time (oldest first)
+        BACKUP_FILES=($(ls -t *.tar.gz 2>/dev/null | tail -r 2>/dev/null || ls -tr *.tar.gz 2>/dev/null))
+        TOTAL_FILES=${#BACKUP_FILES[@]}
+        
+        if [[ $TOTAL_FILES -gt 5 ]]; then
+            # Calculate how many files to delete
+            DELETE_COUNT=$((TOTAL_FILES - 5))
+            echo -e "  Found $TOTAL_FILES backups, removing $DELETE_COUNT old files"
+            
+            # Delete the oldest files
+            for ((i=0; i<$DELETE_COUNT; i++)); do
+                FILE_TO_DELETE="${BACKUP_FILES[$i]}"
+                git rm "$FILE_TO_DELETE" 2>/dev/null
+                echo -e "${RED}  ✗ Removed old backup:${NC} $FILE_TO_DELETE"
+            done
+        else
+            echo -e "  Found $TOTAL_FILES backups, no cleanup needed"
+        fi
+        
+        # Add the new file
+        git add "$OUTPUT_FILE"
+        
+        # Commit with appropriate message
+        if [[ $TOTAL_FILES -gt 5 ]]; then
+            git commit -m "Add dotfiles backup: $OUTPUT_FILE (cleaned up old backups)" 2>/dev/null
+        else
+            git commit -m "Add dotfiles backup: $OUTPUT_FILE" 2>/dev/null
+        fi
+        
+        if git push origin main 2>/dev/null; then
+            echo -e "${GREEN}✓ Successfully pushed to GitHub!${NC}"
+            echo -e "  Repository: https://github.com/cschladetsch/PrivateDotFiles"
+            echo -e "  File: $OUTPUT_FILE"
+            if [[ $TOTAL_FILES -gt 5 ]]; then
+                echo -e "  Removed: $DELETE_COUNT old backup(s)"
+            fi
+        else
+            echo -e "${RED}✗ Failed to push to GitHub${NC}"
+            echo -e "  The backup file is still available at: $HOME/$OUTPUT_FILE"
+        fi
+        
+        # Clean up
+        rm -rf "$REPO_DIR"
+    else
+        echo -e "${RED}✗ Failed to clone repository${NC}"
+        echo -e "  Please ensure you have access to: git@github.com:cschladetsch/PrivateDotFiles.git"
+        echo -e "  The backup file is still available at: $HOME/$OUTPUT_FILE"
+    fi
+fi

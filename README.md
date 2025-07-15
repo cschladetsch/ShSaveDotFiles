@@ -15,6 +15,7 @@ A comprehensive backup solution for your dotfiles and configuration files, makin
 - 🗓️ Timestamped backups for version control
 - ⚡ Automatic validation of backup integrity
 - 🛡️ Safe extraction with backup of existing files
+- 🔄 Push backups to GitHub with automatic cleanup (keeps last 5)
 
 ## What Gets Backed Up
 
@@ -40,9 +41,17 @@ The script backs up common configuration files including:
 
 # Create backup with custom name
 ./archive-dot-files.sh my-backup-2024
+
+# Create backup and push to GitHub repository
+./archive-dot-files.sh --push
+
+# Create backup with custom name and push to GitHub
+./archive-dot-files.sh my-backup-2024 --push
 ```
 
-This creates a `.tar.gz` file in the current directory.
+This creates a `.tar.gz` file in the current directory. With the `--push` option, it will also push the backup to your private GitHub repository at https://github.com/cschladetsch/PrivateDotFiles.
+
+**Note**: When using `--push`, the script automatically maintains only the 5 most recent backups in the repository, removing older ones to save space.
 
 ### Viewing Backup Contents
 
