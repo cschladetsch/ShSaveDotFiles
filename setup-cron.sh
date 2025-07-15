@@ -49,14 +49,41 @@ install_cron() {
     echo -e "\n${BLUE}Configure your backup schedule:${NC}"
     
     # Day of week
-    echo -e "\nWhich day of the week? (0=Sunday, 1=Monday, ... 6=Saturday)"
-    read -p "Day [default: 0 (Sunday)]: " DAY_OF_WEEK
-    DAY_OF_WEEK=${DAY_OF_WEEK:-0}
+    while true; do
+        echo -e "\nWhich day of the week?"
+        echo -e "  0 = Sunday"
+        echo -e "  1 = Monday"
+        echo -e "  2 = Tuesday"
+        echo -e "  3 = Wednesday"
+        echo -e "  4 = Thursday"
+        echo -e "  5 = Friday"
+        echo -e "  6 = Saturday"
+        read -p "Day [default: 0 (Sunday)]: " DAY_OF_WEEK
+        DAY_OF_WEEK=${DAY_OF_WEEK:-0}
+        
+        # Validate day of week
+        if [[ "$DAY_OF_WEEK" =~ ^[0-6]$ ]]; then
+            break
+        else
+            echo -e "${RED}Invalid day! Please enter a number between 0 and 6.${NC}"
+        fi
+    done
     
     # Hour
-    echo -e "\nWhat hour? (0-23, 24-hour format)"
-    read -p "Hour [default: 2 (2 AM)]: " HOUR
-    HOUR=${HOUR:-2}
+    while true; do
+        echo -e "\nWhat hour? (0-23, 24-hour format)"
+        echo -e "  Examples: 0 = midnight, 2 = 2 AM, 14 = 2 PM, 18 = 6 PM"
+        read -p "Hour [default: 2 (2 AM)]: " HOUR
+        HOUR=${HOUR:-2}
+        
+        # Validate hour
+        if [[ "$HOUR" =~ ^([0-9]|1[0-9]|2[0-3])$ ]]; then
+            break
+        else
+            echo -e "${RED}Invalid hour! Please enter a number between 0 and 23.${NC}"
+            echo -e "${YELLOW}Note: Use 24-hour format (0-23), not 1800 for 6 PM.${NC}"
+        fi
+    done
     
     # Push to GitHub?
     echo -e "\nPush backups to GitHub? (y/N)"
@@ -151,8 +178,12 @@ EOF
     crontab "$TEMP_CRON"
     rm "$TEMP_CRON"
     
+    # Get day name for display
+    DAY_NAMES=("Sunday" "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday")
+    DAY_NAME=${DAY_NAMES[$DAY_OF_WEEK]}
+    
     echo -e "\n${GREEN}✓ Backup job installed successfully!${NC}"
-    echo -e "  Schedule: Every week on day $DAY_OF_WEEK at $HOUR:00"
+    echo -e "  Schedule: Every $DAY_NAME at $HOUR:00 (${HOUR}:00 in 24-hour format)"
     echo -e "  Log file: $LOG_FILE"
     if [[ -n "$PUSH_OPTION" ]]; then
         echo -e "  GitHub push: ${GREEN}Enabled${NC}"
