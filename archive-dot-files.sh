@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # backup-dotfiles.sh - Backup important dotfiles for migration
-# Usage: ./backup-dotfiles.sh [output-name] [--push] [--compression=TYPE] [--repo=GITHUB_REPO]
+# Usage: ./backup-dotfiles.sh [output-name] [--push] [--compression=TYPE] [--repo=GITHUB_REPO] [--output-dir=PATH]
 #        --push: Push the backup to GitHub repository
 #        --repo=USER/REPO: GitHub repository for push (default: from git config or env)
 #        --compression=TYPE: Set compression type (gzip, bzip2, xz) - default: gzip
 #                           Use with --level=N for compression level (1-9, default: 6)
+#        --output-dir=PATH: Set output directory (default: d:\dotfiles_backups on Windows, current directory otherwise)
 
 set -euo pipefail
 
@@ -28,12 +29,30 @@ if [[ -z "$DEFAULT_GITHUB_REPO" ]]; then
     DEFAULT_GITHUB_REPO="cschladetsch/PrivateDotFiles"
 fi
 
+# Default output directory
+# On Windows (Git Bash/WSL), default to d:\dotfiles_backups
+# Otherwise, use current directory
+if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+    # WSL uses /mnt/d/ format
+    DEFAULT_OUTPUT_DIR="/mnt/d/dotfiles_backups"
+elif [[ "$OSTYPE" == "msys" ]]; then
+    # Git Bash on Windows uses /d/ format
+    DEFAULT_OUTPUT_DIR="/d/dotfiles_backups"
+elif [[ "$OSTYPE" == "cygwin" ]]; then
+    # Cygwin uses /cygdrive/d/ format
+    DEFAULT_OUTPUT_DIR="/cygdrive/d/dotfiles_backups"
+else
+    # Other systems use home directory
+    DEFAULT_OUTPUT_DIR="$HOME"
+fi
+
 # Parse arguments
 PUSH_TO_REPO=false
 OUTPUT_NAME=""
 COMPRESSION_TYPE="gzip"
 COMPRESSION_LEVEL="6"
 GITHUB_REPO="$DEFAULT_GITHUB_REPO"
+OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
 
 for arg in "$@"; do
     if [[ "$arg" == "--push" ]]; then
@@ -44,6 +63,8 @@ for arg in "$@"; do
         COMPRESSION_TYPE="${BASH_REMATCH[1]}"
     elif [[ "$arg" =~ ^--level=([1-9])$ ]]; then
         COMPRESSION_LEVEL="${BASH_REMATCH[1]}"
+    elif [[ "$arg" =~ ^--output-dir=(.+)$ ]]; then
+        OUTPUT_DIR="${BASH_REMATCH[1]}"
     elif [[ ! "$arg" =~ ^-- ]]; then
         OUTPUT_NAME="$arg"
     fi
@@ -52,6 +73,12 @@ done
 # Set default output name if not provided
 if [[ -z "$OUTPUT_NAME" ]]; then
     OUTPUT_NAME="dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
+fi
+
+# Create output directory if it doesn't exist
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+    echo -e "${YELLOW}Creating output directory: $OUTPUT_DIR${NC}"
+    mkdir -p "$OUTPUT_DIR"
 fi
 
 # Validate compression type and set file extension
@@ -81,7 +108,7 @@ case "$COMPRESSION_TYPE" in
         ;;
 esac
 
-OUTPUT_FILE="${OUTPUT_NAME}.${FILE_EXT}"
+OUTPUT_FILE="${OUTPUT_DIR}/${OUTPUT_NAME}.${FILE_EXT}"
 TEMP_DIR="/tmp/${OUTPUT_NAME}"
 
 # Create temporary directory
@@ -341,14 +368,14 @@ case "$COMPRESSION_TYPE" in
         ;;
 esac
 
-tar $TAR_FLAGS "$HOME/$OUTPUT_FILE" "$OUTPUT_NAME"
+tar $TAR_FLAGS "$OUTPUT_FILE" "$OUTPUT_NAME"
 rm -rf "$TEMP_DIR"
 
 # Calculate size
-SIZE=$(ls -lh "$HOME/$OUTPUT_FILE" | awk '{print $5}')
+SIZE=$(ls -lh "$OUTPUT_FILE" | awk '{print $5}')
 
 echo -e "\n${GREEN}✓ Backup complete!${NC}"
-echo -e "  File: ${GREEN}$HOME/$OUTPUT_FILE${NC}"
+echo -e "  File: ${GREEN}$OUTPUT_FILE${NC}"
 echo -e "  Size: ${GREEN}$SIZE${NC}"
 echo -e "\n${YELLOW}To restore on another machine:${NC}"
 echo -e "  1. Copy $OUTPUT_FILE to the new machine"
@@ -370,7 +397,7 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
     # Clone the repository
     if git clone "git@github.com:${GITHUB_REPO}.git" "$REPO_DIR" 2>/dev/null; then
         # Copy the archive to the repo
-        cp "$HOME/$OUTPUT_FILE" "$REPO_DIR/"
+        cp "$OUTPUT_FILE" "$REPO_DIR/"
         
         # Change to repo directory
         cd "$REPO_DIR"
@@ -398,25 +425,25 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
         fi
         
         # Add the new file
-        git add "$OUTPUT_FILE"
+        git add "$(basename "$OUTPUT_FILE")"
         
         # Commit with appropriate message
         if [[ $TOTAL_FILES -gt 5 ]]; then
-            git commit -m "Add dotfiles backup: $OUTPUT_FILE (cleaned up old backups)" 2>/dev/null
+            git commit -m "Add dotfiles backup: $(basename "$OUTPUT_FILE") (cleaned up old backups)" 2>/dev/null
         else
-            git commit -m "Add dotfiles backup: $OUTPUT_FILE" 2>/dev/null
+            git commit -m "Add dotfiles backup: $(basename "$OUTPUT_FILE")" 2>/dev/null
         fi
         
         if git push origin main 2>/dev/null; then
             echo -e "${GREEN}✓ Successfully pushed to GitHub!${NC}"
             echo -e "  Repository: https://github.com/${GITHUB_REPO}"
-            echo -e "  File: $OUTPUT_FILE"
+            echo -e "  File: $(basename "$OUTPUT_FILE")"
             if [[ $TOTAL_FILES -gt 5 ]]; then
                 echo -e "  Removed: $DELETE_COUNT old backup(s)"
             fi
         else
             echo -e "${RED}✗ Failed to push to GitHub${NC}"
-            echo -e "  The backup file is still available at: $HOME/$OUTPUT_FILE"
+            echo -e "  The backup file is still available at: $OUTPUT_FILE"
         fi
         
         # Clean up
@@ -424,6 +451,6 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
     else
         echo -e "${RED}✗ Failed to clone repository${NC}"
         echo -e "  Please ensure you have access to: git@github.com:${GITHUB_REPO}.git"
-        echo -e "  The backup file is still available at: $HOME/$OUTPUT_FILE"
+        echo -e "  The backup file is still available at: $OUTPUT_FILE"
     fi
 fi

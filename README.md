@@ -17,6 +17,7 @@ A comprehensive backup solution for your dotfiles and configuration files, makin
 - 🛡️ Safe extraction with backup of existing files
 - 🔄 Push backups to any GitHub repository with automatic cleanup (keeps last 5)
 - ⚙️ Configurable GitHub repository (via CLI, environment, or git config)
+- 📁 Configurable output directory (defaults to d:\dotfiles_backups on Windows)
 - 🧪 Comprehensive test suite included
 
 ## What Gets Backed Up
@@ -80,6 +81,9 @@ Compression levels range from 1 (fastest) to 9 (best compression). Default is 6.
 # Create backup with custom name
 ./archive-dot-files.sh my-backup-2024
 
+# Create backup to a specific directory
+./archive-dot-files.sh --output-dir=/path/to/backups
+
 # Create backup and push to GitHub repository
 ./archive-dot-files.sh --push
 
@@ -89,13 +93,22 @@ Compression levels range from 1 (fastest) to 9 (best compression). Default is 6.
 # Push to a different GitHub repository
 ./archive-dot-files.sh --push --repo=myuser/MyDotFiles
 
+# Create backup with all options
+./archive-dot-files.sh my-backup --output-dir=/mnt/d/backups --push --compression=xz --level=9
+
 # Configure default repository for future use
 git config savedotfiles.repo "myuser/MyDotFiles"
 # Or use environment variable
 export SAVEDOTFILES_REPO="myuser/MyDotFiles"
 ```
 
-This creates a `.tar.gz` file in the current directory. With the `--push` option, it will also push the backup to a GitHub repository.
+By default, backups are saved to:
+- WSL: `/mnt/d/dotfiles_backups`
+- Git Bash: `/d/dotfiles_backups`
+- Cygwin: `/cygdrive/d/dotfiles_backups`
+- Other systems: Current user's home directory
+
+Use `--output-dir=/path/to/directory` to override the default location. With the `--push` option, it will also push the backup to a GitHub repository.
 
 **Note**: When using `--push`, the script automatically maintains only the 5 most recent backups in the repository, removing older ones to save space.
 
