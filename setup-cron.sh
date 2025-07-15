@@ -22,7 +22,7 @@ ACTION="${1:-install}"
 
 # Function to check if cron job exists
 cron_exists() {
-    crontab -l 2>/dev/null | grep -q "$CRON_IDENTIFIER"
+    crontab -l 2>/dev/null | grep -q "SaveDotFiles Weekly Backup"
 }
 
 # Function to install cron job
@@ -112,10 +112,11 @@ install_cron() {
         echo -e "Backups will run even if your machine was off at scheduled time."
         
         # Create anacron entry
-        ANACRON_FILE="/etc/anacron"
+        # Anacron format: period delay job-identifier command
         ANACRON_ENTRY="7 10 savedotfiles-backup cd $SCRIPT_DIR && ./archive-dot-files.sh weekly-auto-backup$PUSH_OPTION >> $LOG_FILE 2>&1"
         
         # Check if we can write to system anacron (requires sudo)
+        ANACRON_FILE="/etc/anacron"
         if [[ -w "$ANACRON_FILE" ]]; then
             # Add to system anacron
             if ! grep -q "savedotfiles-backup" "$ANACRON_FILE"; then
@@ -125,13 +126,18 @@ install_cron() {
             # Use user anacron if available
             USER_ANACRON="$HOME/.anacron"
             mkdir -p "$USER_ANACRON/spool"
-            echo "$ANACRON_ENTRY" > "$USER_ANACRON/anacrontab"
             
-            # Also add a cron job to run user anacron
+            # Create anacrontab file with proper format
+            cat > "$USER_ANACRON/anacrontab" << EOF
+# period delay job-identifier command
+7 10 savedotfiles-backup cd $SCRIPT_DIR && ./archive-dot-files.sh weekly-auto-backup$PUSH_OPTION >> $LOG_FILE 2>&1
+EOF
+            
+            # Add a cron job to run user anacron hourly
             echo "" >> "$TEMP_CRON"
-            echo "$CRON_IDENTIFIER" >> "$TEMP_CRON"
-            echo "# Run anacron to catch up on missed backups" >> "$TEMP_CRON"
-            echo "@hourly /usr/sbin/anacron -t $USER_ANACRON/anacrontab -S $USER_ANACRON/spool" >> "$TEMP_CRON"
+            echo "$CRON_IDENTIFIER - Anacron Runner" >> "$TEMP_CRON"
+            echo "# Run anacron hourly to catch up on missed backups" >> "$TEMP_CRON"
+            echo "0 * * * * /usr/sbin/anacron -t $USER_ANACRON/anacrontab -S $USER_ANACRON/spool" >> "$TEMP_CRON"
         fi
     fi
     
@@ -172,7 +178,7 @@ remove_cron() {
     # Remove cron job
     if cron_exists; then
         TEMP_CRON=$(mktemp)
-        crontab -l 2>/dev/null | grep -v "$CRON_IDENTIFIER" | grep -v "weekly-auto-backup" | grep -v "anacron" > "$TEMP_CRON"
+        crontab -l 2>/dev/null | grep -v "SaveDotFiles Weekly Backup" | grep -v "weekly-auto-backup" | grep -v "anacron" > "$TEMP_CRON"
         crontab "$TEMP_CRON"
         rm "$TEMP_CRON"
         echo -e "${GREEN}✓ Cron job removed${NC}"
