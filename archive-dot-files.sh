@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # backup-dotfiles.sh - Backup important dotfiles for migration
-# Usage: ./backup-dotfiles.sh [output-name] [--push]
+# Usage: ./backup-dotfiles.sh [output-name] [--push] [--compression=TYPE]
 #        --push: Push the backup to https://github.com/cschladetsch/PrivateDotFiles
+#        --compression=TYPE: Set compression type (gzip, bzip2, xz) - default: gzip
+#                           Use with --level=N for compression level (1-9, default: 6)
 
 set -euo pipefail
 
@@ -15,11 +17,17 @@ NC='\033[0m' # No Color
 # Parse arguments
 PUSH_TO_REPO=false
 OUTPUT_NAME=""
+COMPRESSION_TYPE="gzip"
+COMPRESSION_LEVEL="6"
 
 for arg in "$@"; do
     if [[ "$arg" == "--push" ]]; then
         PUSH_TO_REPO=true
-    else
+    elif [[ "$arg" =~ ^--compression=(.+)$ ]]; then
+        COMPRESSION_TYPE="${BASH_REMATCH[1]}"
+    elif [[ "$arg" =~ ^--level=([1-9])$ ]]; then
+        COMPRESSION_LEVEL="${BASH_REMATCH[1]}"
+    elif [[ ! "$arg" =~ ^-- ]]; then
         OUTPUT_NAME="$arg"
     fi
 done
@@ -29,7 +37,34 @@ if [[ -z "$OUTPUT_NAME" ]]; then
     OUTPUT_NAME="dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
 fi
 
-OUTPUT_FILE="${OUTPUT_NAME}.tar.gz"
+# Validate compression type and set file extension
+case "$COMPRESSION_TYPE" in
+    gzip|gz)
+        COMPRESSION_TYPE="gzip"
+        FILE_EXT="tar.gz"
+        TAR_FLAGS="-czf"
+        EXTRACT_FLAGS="-xzf"
+        ;;
+    bzip2|bz2)
+        COMPRESSION_TYPE="bzip2"
+        FILE_EXT="tar.bz2"
+        TAR_FLAGS="-cjf"
+        EXTRACT_FLAGS="-xjf"
+        ;;
+    xz)
+        COMPRESSION_TYPE="xz"
+        FILE_EXT="tar.xz"
+        TAR_FLAGS="-cJf"
+        EXTRACT_FLAGS="-xJf"
+        ;;
+    *)
+        echo -e "${RED}Error: Unknown compression type: $COMPRESSION_TYPE${NC}"
+        echo "Supported types: gzip, bzip2, xz"
+        exit 1
+        ;;
+esac
+
+OUTPUT_FILE="${OUTPUT_NAME}.${FILE_EXT}"
 TEMP_DIR="/tmp/${OUTPUT_NAME}"
 
 # Create temporary directory
@@ -100,6 +135,9 @@ DOTFILES=(
     
     # User documents
     "doc"
+    
+    # User scripts
+    "bin"
 )
 
 # Function to check if file/directory exists and copy it
@@ -229,7 +267,7 @@ This archive contains configuration files (dotfiles) from your home directory.
 
 1. Extract this archive:
    \`\`\`bash
-   tar -xzf ${OUTPUT_FILE}
+   tar ${EXTRACT_FLAGS} ${OUTPUT_FILE}
    cd ${OUTPUT_NAME}
    \`\`\`
 
@@ -267,8 +305,26 @@ EOF
 
 # Create the archive
 echo -e "\n${YELLOW}Creating archive...${NC}"
+echo -e "  Compression: ${GREEN}${COMPRESSION_TYPE}${NC} (level ${COMPRESSION_LEVEL})"
+
 cd /tmp
-tar -czf "$HOME/$OUTPUT_FILE" "$OUTPUT_NAME"
+
+# Set compression environment variable based on type
+# Note: For gzip, we use tar's built-in option to avoid deprecation warning
+case "$COMPRESSION_TYPE" in
+    gzip)
+        # Use tar's built-in gzip compression level option
+        TAR_FLAGS="${TAR_FLAGS} --gzip --options gzip:compression-level=${COMPRESSION_LEVEL}"
+        ;;
+    bzip2)
+        export BZIP2="-${COMPRESSION_LEVEL}"
+        ;;
+    xz)
+        export XZ_OPT="-${COMPRESSION_LEVEL}"
+        ;;
+esac
+
+tar $TAR_FLAGS "$HOME/$OUTPUT_FILE" "$OUTPUT_NAME"
 rm -rf "$TEMP_DIR"
 
 # Calculate size
@@ -279,7 +335,7 @@ echo -e "  File: ${GREEN}$HOME/$OUTPUT_FILE${NC}"
 echo -e "  Size: ${GREEN}$SIZE${NC}"
 echo -e "\n${YELLOW}To restore on another machine:${NC}"
 echo -e "  1. Copy $OUTPUT_FILE to the new machine"
-echo -e "  2. tar -xzf $OUTPUT_FILE"
+echo -e "  2. tar $EXTRACT_FLAGS $OUTPUT_FILE"
 echo -e "  3. cd $OUTPUT_NAME"
 echo -e "  4. ./restore-dotfiles.sh"
 
@@ -305,8 +361,8 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
         # Keep only the last 5 backup files
         echo -e "${YELLOW}Cleaning up old backups (keeping last 5)...${NC}"
         
-        # Get all tar.gz files sorted by modification time (oldest first)
-        BACKUP_FILES=($(ls -t *.tar.gz 2>/dev/null | tail -r 2>/dev/null || ls -tr *.tar.gz 2>/dev/null))
+        # Get all tar.* files sorted by modification time (oldest first)
+        BACKUP_FILES=($(ls -t *.tar.{gz,bz2,xz} 2>/dev/null | tail -r 2>/dev/null || ls -tr *.tar.{gz,bz2,xz} 2>/dev/null))
         TOTAL_FILES=${#BACKUP_FILES[@]}
         
         if [[ $TOTAL_FILES -gt 5 ]]; then
