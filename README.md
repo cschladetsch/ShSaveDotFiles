@@ -29,6 +29,8 @@ The script backs up common configuration files including:
 - **Editors**: `.vimrc`, `.vim/`, `.emacs.d/`
 - **Development Tools**: `.npmrc`, `.cargo/`, `.rustup/`
 - **Desktop Environments**: `.config/` directory for modern applications
+- **User Documents**: `~/doc` directory with your documents
+- **User Scripts**: `~/bin` directory with your personal scripts and tools
 - **And many more...**
 
 ## Usage
