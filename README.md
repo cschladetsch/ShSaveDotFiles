@@ -13,9 +13,11 @@ A comprehensive backup solution for your dotfiles and configuration files, makin
 - 🎨 Color-coded output for better visibility
 - 📊 Progress tracking with file counts
 - 🗓️ Timestamped backups for version control
-- ⚡ Automatic validation of backup integrity
+- ⚡ Multiple compression formats (gzip, bzip2, xz) with configurable levels
 - 🛡️ Safe extraction with backup of existing files
-- 🔄 Push backups to GitHub with automatic cleanup (keeps last 5)
+- 🔄 Push backups to any GitHub repository with automatic cleanup (keeps last 5)
+- ⚙️ Configurable GitHub repository (via CLI, environment, or git config)
+- 🧪 Comprehensive test suite included
 
 ## What Gets Backed Up
 
@@ -33,6 +35,40 @@ The script backs up common configuration files including:
 - **User Scripts**: `~/bin` directory with your personal scripts and tools
 - **And many more...**
 
+## Configuration
+
+### GitHub Repository Setup
+
+The `--push` option allows you to automatically backup your dotfiles to a GitHub repository. You can configure the repository in three ways (in order of precedence):
+
+1. **Command line**: `--repo=username/repository`
+2. **Environment variable**: `export SAVEDOTFILES_REPO="username/repository"`
+3. **Git config**: `git config savedotfiles.repo "username/repository"`
+4. **Default**: Falls back to `cschladetsch/PrivateDotFiles`
+
+**Note**: The repository must exist and you must have push access via SSH.
+
+### Compression Options
+
+The script supports multiple compression formats with configurable compression levels:
+
+- **gzip** (default): Fast compression, good compatibility
+- **bzip2**: Better compression ratio, slower
+- **xz**: Best compression ratio, slowest
+
+Compression levels range from 1 (fastest) to 9 (best compression). Default is 6.
+
+```bash
+# Use XZ compression for maximum space savings
+./archive-dot-files.sh --compression=xz
+
+# Use fast compression for quick backups
+./archive-dot-files.sh --compression=gzip --level=1
+
+# Use bzip2 with maximum compression
+./archive-dot-files.sh --compression=bzip2 --level=9
+```
+
 ## Usage
 
 ### Creating a Backup
@@ -49,9 +85,17 @@ The script backs up common configuration files including:
 
 # Create backup with custom name and push to GitHub
 ./archive-dot-files.sh my-backup-2024 --push
+
+# Push to a different GitHub repository
+./archive-dot-files.sh --push --repo=myuser/MyDotFiles
+
+# Configure default repository for future use
+git config savedotfiles.repo "myuser/MyDotFiles"
+# Or use environment variable
+export SAVEDOTFILES_REPO="myuser/MyDotFiles"
 ```
 
-This creates a `.tar.gz` file in the current directory. With the `--push` option, it will also push the backup to your private GitHub repository at https://github.com/cschladetsch/PrivateDotFiles.
+This creates a `.tar.gz` file in the current directory. With the `--push` option, it will also push the backup to a GitHub repository.
 
 **Note**: When using `--push`, the script automatically maintains only the 5 most recent backups in the repository, removing older ones to save space.
 
@@ -268,13 +312,43 @@ ls -la ~/dotfiles-backup-*.tar.gz | tail -5
 4. **Test Restores**: Verify your backups work before you need them
 5. **Documentation**: Keep notes about any manual configuration steps
 
+## Testing
+
+A comprehensive test suite is included to verify functionality:
+
+```bash
+# Run all tests
+./test-archive.sh
+```
+
+The test suite verifies:
+- Basic backup creation
+- All compression formats (gzip, bzip2, xz)
+- Compression levels
+- File inclusion (including ~/bin and ~/doc)
+- Error handling
+- Archive integrity
+
 ## Requirements
 
 - Bash 4.0+
 - GNU tar
 - Standard Unix utilities (find, grep, wc)
 - Sufficient disk space for the archive
+- For `--push`: Git and SSH access to GitHub
+
+## Project Structure
+
+```
+.
+├── README.md             # This file
+├── LICENSE              # MIT License
+├── .gitignore           # Git ignore rules
+├── archive-dot-files.sh # Main backup script
+├── setup-cron.sh        # Automated backup setup
+└── test-archive.sh      # Test suite
+```
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details.

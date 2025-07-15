@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # backup-dotfiles.sh - Backup important dotfiles for migration
-# Usage: ./backup-dotfiles.sh [output-name] [--push] [--compression=TYPE]
-#        --push: Push the backup to https://github.com/cschladetsch/PrivateDotFiles
+# Usage: ./backup-dotfiles.sh [output-name] [--push] [--compression=TYPE] [--repo=GITHUB_REPO]
+#        --push: Push the backup to GitHub repository
+#        --repo=USER/REPO: GitHub repository for push (default: from git config or env)
 #        --compression=TYPE: Set compression type (gzip, bzip2, xz) - default: gzip
 #                           Use with --level=N for compression level (1-9, default: 6)
 
@@ -14,15 +15,31 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Configuration
+# Default GitHub repository - can be overridden by:
+# 1. --repo command line argument
+# 2. SAVEDOTFILES_REPO environment variable
+# 3. git config savedotfiles.repo
+DEFAULT_GITHUB_REPO="${SAVEDOTFILES_REPO:-}"
+if [[ -z "$DEFAULT_GITHUB_REPO" ]]; then
+    DEFAULT_GITHUB_REPO=$(git config savedotfiles.repo 2>/dev/null || echo "")
+fi
+if [[ -z "$DEFAULT_GITHUB_REPO" ]]; then
+    DEFAULT_GITHUB_REPO="cschladetsch/PrivateDotFiles"
+fi
+
 # Parse arguments
 PUSH_TO_REPO=false
 OUTPUT_NAME=""
 COMPRESSION_TYPE="gzip"
 COMPRESSION_LEVEL="6"
+GITHUB_REPO="$DEFAULT_GITHUB_REPO"
 
 for arg in "$@"; do
     if [[ "$arg" == "--push" ]]; then
         PUSH_TO_REPO=true
+    elif [[ "$arg" =~ ^--repo=(.+)$ ]]; then
+        GITHUB_REPO="${BASH_REMATCH[1]}"
     elif [[ "$arg" =~ ^--compression=(.+)$ ]]; then
         COMPRESSION_TYPE="${BASH_REMATCH[1]}"
     elif [[ "$arg" =~ ^--level=([1-9])$ ]]; then
@@ -310,11 +327,11 @@ echo -e "  Compression: ${GREEN}${COMPRESSION_TYPE}${NC} (level ${COMPRESSION_LE
 cd /tmp
 
 # Set compression environment variable based on type
-# Note: For gzip, we use tar's built-in option to avoid deprecation warning
 case "$COMPRESSION_TYPE" in
     gzip)
-        # Use tar's built-in gzip compression level option
-        TAR_FLAGS="${TAR_FLAGS} --gzip --options gzip:compression-level=${COMPRESSION_LEVEL}"
+        # Use environment variable despite deprecation warning
+        # (--options flag not universally available)
+        export GZIP="-${COMPRESSION_LEVEL}"
         ;;
     bzip2)
         export BZIP2="-${COMPRESSION_LEVEL}"
@@ -345,13 +362,13 @@ echo -e "This is normal if you don't use certain applications."
 
 # Push to git repository if requested
 if [[ "$PUSH_TO_REPO" == true ]]; then
-    echo -e "\n${YELLOW}Pushing to PrivateDotFiles repository...${NC}"
+    echo -e "\n${YELLOW}Pushing to GitHub repository: ${GITHUB_REPO}...${NC}"
     
     # Create a temporary directory for the git operation
     REPO_DIR="/tmp/PrivateDotFiles-$(date +%s)"
     
     # Clone the repository
-    if git clone git@github.com:cschladetsch/PrivateDotFiles.git "$REPO_DIR" 2>/dev/null; then
+    if git clone "git@github.com:${GITHUB_REPO}.git" "$REPO_DIR" 2>/dev/null; then
         # Copy the archive to the repo
         cp "$HOME/$OUTPUT_FILE" "$REPO_DIR/"
         
@@ -392,7 +409,7 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
         
         if git push origin main 2>/dev/null; then
             echo -e "${GREEN}✓ Successfully pushed to GitHub!${NC}"
-            echo -e "  Repository: https://github.com/cschladetsch/PrivateDotFiles"
+            echo -e "  Repository: https://github.com/${GITHUB_REPO}"
             echo -e "  File: $OUTPUT_FILE"
             if [[ $TOTAL_FILES -gt 5 ]]; then
                 echo -e "  Removed: $DELETE_COUNT old backup(s)"
@@ -406,7 +423,7 @@ if [[ "$PUSH_TO_REPO" == true ]]; then
         rm -rf "$REPO_DIR"
     else
         echo -e "${RED}✗ Failed to clone repository${NC}"
-        echo -e "  Please ensure you have access to: git@github.com:cschladetsch/PrivateDotFiles.git"
+        echo -e "  Please ensure you have access to: git@github.com:${GITHUB_REPO}.git"
         echo -e "  The backup file is still available at: $HOME/$OUTPUT_FILE"
     fi
 fi
