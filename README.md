@@ -186,6 +186,71 @@ tar -tzf dotfiles-backup.tar.gz > /dev/null && echo "Archive is valid"
 diff -r ~/.bashrc /tmp/restore/home/$(whoami)/.bashrc
 ```
 
+## Automated Weekly Backups
+
+The `setup-cron.sh` script helps you configure automatic weekly backups using cron and anacron.
+
+### Features
+
+- **Anacron Support**: Automatically detects and uses anacron to ensure backups run even if your machine was off
+- **Package Manager Detection**: Offers to install anacron if not present (supports apt, yum, dnf, pacman)
+- **Flexible Scheduling**: Choose your preferred day and time for backups
+- **GitHub Integration**: Option to automatically push backups to your PrivateDotFiles repository
+- **Comprehensive Logging**: All backup operations logged to `~/.local/log/savedotfiles-backup.log`
+
+### Setting Up Automated Backups
+
+```bash
+# Install weekly backup job (interactive setup)
+./setup-cron.sh --install
+
+# Check current backup job status
+./setup-cron.sh --status
+
+# Remove all backup jobs
+./setup-cron.sh --remove
+```
+
+During installation, you'll be asked to:
+1. Install anacron if not present (recommended)
+2. Choose day of week (0=Sunday through 6=Saturday)
+3. Choose hour (0-23 in 24-hour format)
+4. Enable/disable automatic GitHub push
+
+### How It Works
+
+The script sets up:
+1. **Anacron job** (if available): Ensures backups run even if the machine was off
+2. **Regular cron job**: Runs at your specified time as a fallback
+3. **Logging**: All operations logged for monitoring
+
+### Example Schedule
+
+With anacron:
+```
+# Anacron entry (runs within 10 minutes of machine startup if backup was missed)
+7 10 savedotfiles-backup cd /path/to/ShSaveDotFiles && ./archive-dot-files.sh weekly-auto-backup --push >> ~/.local/log/savedotfiles-backup.log 2>&1
+```
+
+Regular cron:
+```
+# Runs every week on Sunday at 2:00 AM
+0 2 * * 0 cd /path/to/ShSaveDotFiles && ./archive-dot-files.sh weekly-auto-backup --push >> ~/.local/log/savedotfiles-backup.log 2>&1
+```
+
+### Monitoring Automated Backups
+
+```bash
+# Check backup logs
+tail -f ~/.local/log/savedotfiles-backup.log
+
+# Verify backup jobs are configured
+./setup-cron.sh --status
+
+# List recent backups
+ls -la ~/dotfiles-backup-*.tar.gz | tail -5
+```
+
 ## Best Practices
 
 1. **Regular Backups**: Run monthly or before major system changes
