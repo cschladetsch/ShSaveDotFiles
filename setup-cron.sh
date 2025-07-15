@@ -20,6 +20,24 @@ CRON_IDENTIFIER="# SaveDotFiles Weekly Backup"
 # Default action
 ACTION="${1:-install}"
 
+# Check if running on Windows (WSL, Git Bash, etc.)
+if [[ -n "${WSL_DISTRO_NAME:-}" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    echo -e "${YELLOW}Windows detected!${NC}"
+    echo -e "${BLUE}For better integration with Windows, consider using Task Scheduler instead:${NC}"
+    echo -e "  ${GREEN}powershell -ExecutionPolicy Bypass -File setup-task-scheduler.ps1${NC}"
+    echo -e "\nTask Scheduler advantages:"
+    echo -e "  - Native Windows integration"
+    echo -e "  - Runs even when WSL/Git Bash is closed"
+    echo -e "  - Better handling of system sleep/hibernation"
+    echo -e "  - Visible in Windows Task Scheduler GUI"
+    echo ""
+    read -p "Continue with cron/anacron setup anyway? (y/N): " CONTINUE_CRON
+    if [[ ! "$CONTINUE_CRON" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}Exiting. Run the PowerShell script mentioned above for Task Scheduler setup.${NC}"
+        exit 0
+    fi
+fi
+
 # Function to check if cron job exists
 cron_exists() {
     crontab -l 2>/dev/null | grep -q "SaveDotFiles Weekly Backup"

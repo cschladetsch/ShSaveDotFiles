@@ -70,8 +70,20 @@ for arg in "$@"; do
     fi
 done
 
+# Detect if running from cron/anacron/Task Scheduler
+RUNNING_FROM_SCHEDULER=false
+if [[ "$OUTPUT_NAME" == "weekly-auto-backup" ]]; then
+    RUNNING_FROM_SCHEDULER=true
+    # Check if running from Windows Task Scheduler (via WSL or Git Bash)
+    if [[ -n "${SESSIONNAME:-}" ]] || [[ -n "${USERDOMAIN:-}" ]] || [[ "$PWD" =~ ^/mnt/[a-z]/ ]]; then
+        echo -e "${GREEN}Running from Windows Task Scheduler${NC}"
+    else
+        echo -e "${GREEN}Running from cron/anacron${NC}"
+    fi
+fi
+
 # Set default output name if not provided
-if [[ -z "$OUTPUT_NAME" ]]; then
+if [[ -z "$OUTPUT_NAME" ]] || [[ "$OUTPUT_NAME" == "weekly-auto-backup" ]]; then
     OUTPUT_NAME="dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
 fi
 
